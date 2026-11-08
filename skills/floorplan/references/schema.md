@@ -2,7 +2,7 @@
 
 `floorplan/architecture.json` describes the structure: subsystems, modules, external services, flows. Names and descriptions for individual files and routes go in `floorplan/descriptions/*.json` instead (see [writing-descriptions.md](writing-descriptions.md)). They're kept separate so parallel agents can write them without conflicts. `build.mjs` checks both against the scan and reports problems by field.
 
-Contents: [Top level](#top-level) · [nodes](#nodes) · [Assignment rules](#how-files-get-assigned) · [edges](#edges) · [annotations](#annotations) · [flows](#flows) · [Recent work](#recent-work) · [Full example](#full-example)
+Contents: [Top level](#top-level) · [nodes](#nodes) · [Assignment rules](#how-files-get-assigned) · [edges](#edges) · [annotations](#annotations) · [flows](#flows) · [processes](#processes) · [Recent work](#recent-work) · [Full example](#full-example)
 
 ## Top level
 
@@ -14,6 +14,7 @@ Contents: [Top level](#top-level) · [nodes](#nodes) · [Assignment rules](#how-
 | `edges` | array | no | connections the scanner can't see |
 | `annotations` | array | no | notes pinned to specific files |
 | `flows` | array | no | guided walkthroughs through the board |
+| `processes` | array | no | the **How it works** view: the app's main processes as plain-words chains of emoji steps. See below |
 | `tour` | array | no | the "Start here" tour shown on first open: 3–8 stops `{ "node": "<node id or file path>", "title": "…", "note": "…" }`, in plain language, in the order a newcomer should see them. The first flow is appended automatically |
 | `audience` | `"everyone"` \| `"developers"` | no | who names and descriptions are written for. Default `"everyone"`: plain language a non-technical owner understands (what it does for the business, in everyday words). `"developers"`: technical style for engineers |
 | `include` | string[] | no | file categories to map. Default `["code"]`. Others: `config`, `docs` |
@@ -97,6 +98,29 @@ Good candidates:
 - Each step's `node` is a node id or a file path. There must be at least 2 steps.
 - The viewer moves to the board where each pair of consecutive steps is visible and animates a signal between them.
 - Write the notes as a narration a new engineer would want.
+
+## processes
+
+The **How it works** view: a big-picture drawing of what the app does, for people who never read code. Processes stack top to bottom; each is a row of steps joined by arrows.
+
+```json
+"processes": [
+  { "id": "ask", "title": "2️⃣ When you ask the chat a question", "description": "optional, one sentence",
+    "steps": [
+      { "emoji": "💬", "label": "You ask", "node": "web.chat", "arrow": "sends it" },
+      { "emoji": "🧠", "label": "It checks who you are", "node": "api.auth" },
+      { "emoji": "🧹", "label": "It forgets within minutes", "note": "optional, shown on hover" }
+    ] },
+  { "id": "big", "title": "1️⃣ The big idea",
+    "steps": [ { "id": "you", "emoji": "👤", "label": "You open the app" }, { "id": "app", "emoji": "📱", "label": "The app", "node": "web" }, { "id": "srv", "emoji": "🧠", "label": "Checks who you are", "node": "api" } ],
+    "arrows": [ { "from": "you", "to": "app" }, { "from": "app", "to": "srv", "label": "asks" }, { "from": "srv", "to": "app", "label": "answer" } ] }
+]
+```
+- `id` and `title` are required; put the emoji and number in the title. At least 1 step, ideally 3–7.
+- A step needs a `label` (a few everyday words). `emoji`, `note` and `node` are optional.
+- `node` is a node id or file path. The step then opens that part of the map. One that isn't on the map is a warning: the step stays, without a link.
+- Without `arrows`, steps form one chain in order and each step's `arrow` labels the arrow out of it. With `arrows`, steps need `id`s and only the listed arrows are drawn: they can branch, and an arrow back to an earlier step is drawn as a loop underneath.
+- Write them in the user's language and in plain words: no file names, function names or jargon.
 
 ## recent work
 

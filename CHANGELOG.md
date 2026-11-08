@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **How it works:** a new header view draws the app's main processes as a plain-words picture, like a whiteboard drawing: stacked rows of emoji steps joined by labelled arrows. Claude writes them as `processes` in `architecture.json` on every make and update, in the user's language, and each step can open the part of the map that does it.
+
 ## 0.6.3 (2026-11-02)
 
 - **Endpoints in route tables** (#54, from @Yahhi): servers without a framework often keep their endpoints in a lookup a dispatcher reads, keyed by method and path, like `{ "GET /api/orders": listOrders }` in JavaScript or a Python dict of handlers behind a cloud function. Floorplan found no endpoints in these apps, so the website's requests weren't linked to the server. Now each key is an endpoint, named after its handler (a function, an inline function that calls one, or a wrapped one like `requireAuth(createOrder)`). Tables of other things keyed the same way, like access levels or notes, are left alone. Health doesn't judge sign-in on these endpoints, because the dispatcher or the handler checks it where Floorplan can't see.

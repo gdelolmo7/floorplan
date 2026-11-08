@@ -57,7 +57,7 @@ It re-scans, compares content fingerprints against the last build, and does the 
 Do only what NEXT asks:
 - add globs for new directories that landed in "unassigned";
 - run describe.mjs (step 6), which now only produces worksheets for the new and flagged items;
-- check module summaries and flows if the change was large.
+- check module summaries, flows and `processes` if the change was large (a new main job of the app gets a process; a process whose steps now warn "not on the map" gets its `node` pointers fixed).
 
 A typical refresh after a few hours of work is a handful of worksheet entries. Then mark recent work (step 7), and show it and report (step 8). Always show it, even when nothing changed: the user asked to see their floorplan.
 
@@ -80,11 +80,14 @@ The codebase root is the argument if one was given, otherwise the current direct
    - external nodes for the databases and third-party services the code really talks to;
    - edges only for what the scan can't see (queues, cron, webhooks, cross-service calls through env-configured URLs);
    - 1–3 flows that explain the system's main jobs;
-   - a `tour`: 3–8 narrated stops for the "Start here" tour (see below).
+   - a `tour`: 3–8 narrated stops for the "Start here" tour (see below);
+   - 3–6 `processes` for the **How it works** view (see below).
 
    Every node needs a `summary`.
 
    **Audience.** The people opening this map are usually the app's owners, often non-technical builders who made it with AI. Unless the user asks for a developer-facing map, leave `"audience"` unset or set it to `"everyone"`, and write every `project.summary`, node `label`/`summary`, and file/route description in plain language (see "Plain language" in references/writing-descriptions.md). Use short labels like "Main server" rather than "Shop API (Flask)". Paths and method/URL stay visible on the cards, so descriptions only need to say what the thing is for.
+
+   **Processes.** Add `"processes"`: the app's main processes as a big-picture picture for someone who will never read code, like a whiteboard drawing. Start with one "the big idea" process (the person, the app, what the server does, the outside tools, the AI or database, the answer coming back), then one per main job (what happens when someone asks a question, when data changes elsewhere, when they sign out, how private data is protected). Each is a title with an emoji, an optional one-sentence description, and 3–7 steps `{ "emoji": "💬", "label": "You ask a question", "node": "<node id or file path>", "arrow": "label on the arrow out of this step" }`. Labels are a few everyday words, no file or function names. Point `node` at the part of the map that does that step, so clicking it opens it; leave it out for steps that aren't code (the person, an outside tool). Steps run left to right in order; for a branching picture give steps an `id` and list `arrows: [{ "from", "to", "label" }]` instead. **Write processes in the language the user talks to you in** (Spanish if they write in Spanish), whatever language the code is in. Full format in [schema.md](references/schema.md#processes).
 
    **Tour.** Add `"tour": [{ "node": "<node id or file path>", "title": "…", "note": "…" }]`, with stops in the order a newcomer should see them: what the app is, the apps people use, the main server, outside services, and ending on an important screen's file. Write titles and notes in plain words for someone who has never read the code. The first guided flow is added at the end automatically as "watch a real request". Without a tour, one is built from node summaries and the first flow, so good summaries and at least one flow matter.
 
@@ -168,6 +171,7 @@ It writes `floorplan/<project>-map.html` unless given a file. `--include` defaul
 
   Each issue has **Show on map** (highlights the affected files and endpoints with notes) and **Fix with Claude** or **Fix with Codex** (a ready-to-paste prompt naming the exact files and lines and the safe fix). It's computed by `scripts/lib/health.mjs` during scan and build, and it never stores secret values, only the file, line and a masked hint. Treat it as a quick automatic check, not a security audit.
 - **Screens.** The build detects the app's screens (Next.js, React Router, Vue, SvelteKit, Remix, Nuxt, Astro, Expo, Angular, TanStack) with `scripts/lib/screens.mjs`. It also works out what sits behind each one: its components, the requests it makes, the server code and data that answer them, and outside services. A **Screens** button lets people start from the page they know.
+- **How it works.** A header button shows `processes` as stacked rows of emoji steps joined by labelled arrows, a plain-words picture of what the app does. Steps with ↗ open their part of the map.
 - **Start here.** A one-minute tour runs on first open and can be replayed from the header. It uses your `tour`, or builds one automatically.
 - **Plain words by default.** Connection types read "Uses", "Web requests", "Background jobs". Common technical terms are underlined and explained on hover. **Filters → Show technical detail** switches to developer terms and shows exports.
 

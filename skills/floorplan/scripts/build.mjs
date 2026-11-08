@@ -254,6 +254,49 @@ if (arch.tour !== undefined) {
     if (ref) outTour.push({ ref, title: isStr(s.title) ? s.title : '', note: isStr(s.note) ? s.note : '' });
   });
 }
+// "How it works": the app's main processes in plain words, each a left-to-right chain of steps
+// (architecture.json `processes`). Steps may point at a node or file; a pointer that no longer
+// exists is a warning and the step stays, unlinked, so the picture never breaks on a refactor.
+const outProcesses = [];
+if (arch.processes !== undefined) {
+  if (!Array.isArray(arch.processes)) err('processes must be an array of { id, title, steps }');
+  else arch.processes.forEach((pr, i) => {
+    const where = `processes[${i}]`;
+    if (!isStr(pr?.id) || !isStr(pr?.title)) { err(`${where} needs id and title`); return; }
+    if (!Array.isArray(pr.steps) || pr.steps.length < 1) { err(`${where}.steps needs at least 1 step`); return; }
+    const sid = new Set();
+    const steps = [];
+    pr.steps.forEach((s, j) => {
+      const at = `${where}.steps[${j}]`;
+      if (!isStr(s?.label)) { err(`${at} needs a label`); return; }
+      const id = isStr(s.id) ? s.id : `s${j}`;
+      if (sid.has(id)) { err(`${at}.id "${id}" is used twice in this process`); return; }
+      sid.add(id);
+      let ref = null;
+      if (s.node !== undefined) {
+        const p = String(s.node).replace(/^file:/, '');
+        if (byId.has(p)) ref = `n:${p}`;
+        else if (includedSet.has(p)) ref = `f:${p}`;
+        else warn(`${at}.node "${s.node}" is not on the map, so the step is shown without a link${didYouMean(String(s.node), ids)}`);
+      }
+      steps.push({ id, emoji: isStr(s.emoji) ? s.emoji : '', label: s.label, ...(isStr(s.note) ? { note: s.note } : {}), ...(isStr(s.arrow) ? { arrow: s.arrow } : {}), ...(ref ? { ref } : {}) });
+    });
+    let arrows;
+    if (pr.arrows !== undefined) {
+      if (!Array.isArray(pr.arrows)) { err(`${where}.arrows must be an array of { from, to, label }`); arrows = []; }
+      else arrows = pr.arrows.flatMap((a, j) => {
+        const bad = ['from', 'to'].filter((k) => !sid.has(a?.[k]));
+        if (bad.length) { err(`${where}.arrows[${j}].${bad[0]} must be the id of a step in this process`); return []; }
+        return [{ a: a.from, b: a.to, ...(isStr(a.label) ? { label: a.label } : {}) }];
+      });
+    } else {
+      // no arrows given: one chain in order, each step's `arrow` labelling the arrow out of it
+      arrows = steps.slice(1).map((s, j) => ({ a: steps[j].id, b: s.id, ...(steps[j].arrow ? { label: steps[j].arrow } : {}) }));
+    }
+    for (const s of steps) delete s.arrow;
+    outProcesses.push({ id: pr.id, title: pr.title, ...(isStr(pr.description) ? { description: pr.description } : {}), steps, arrows });
+  });
+}
 // "Recent work": what Claude just changed, per task, framed against what the user asked for
 // (floorplan/recent-work.json, rewritten on every make/update). Stale refs are warnings, never errors.
 let outRecent = null;
@@ -411,6 +454,7 @@ const graph = {
   links: [...links.values()],
   flows: outFlows,
   tour: outTour,
+  ...(outProcesses.length ? { processes: outProcesses } : {}),
   ...(outRecent?.items.length ? { recent: outRecent } : {}),
 };
 // extension hooks, computed from the finished graph plus the raw scan
