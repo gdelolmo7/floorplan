@@ -101,7 +101,7 @@ Good candidates:
 
 ## processes
 
-The **How it works** view: a big-picture drawing of what the app does, for people who never read code. Processes stack top to bottom; each is a row of steps joined by arrows.
+The **How it works** board: what the app does, as a few plain-words stories for people who never read code. It is drawn on the map's canvas: each process is a frame, stacked top to bottom, with its steps as cards joined by arrows. The examples below show the shape only; write this app's own stories (SKILL.md says how).
 
 ```json
 "processes": [
@@ -118,8 +118,8 @@ The **How it works** view: a big-picture drawing of what the app does, for peopl
 ```
 - `id` and `title` are required; put the emoji and number in the title. At least 1 step, ideally 3–7.
 - A step needs a `label` (a few everyday words). `emoji`, `note` and `node` are optional.
-- `node` is a node id or file path. The step then opens that part of the map. One that isn't on the map is a warning: the step stays, without a link.
-- Without `arrows`, steps form one chain in order and each step's `arrow` labels the arrow out of it. With `arrows`, steps need `id`s and only the listed arrows are drawn: they can branch, and an arrow back to an earlier step is drawn as a loop underneath.
+- `node` is a node id or file path. Double-clicking the step (or **Show on the map**) then opens that part of the map. One that isn't on the map is a warning: the step stays, without a link.
+- Without `arrows`, steps form one chain in order and each step's `arrow` labels the arrow out of it. With `arrows`, steps need `id`s and only the listed arrows are drawn: they can branch and loop back.
 - Write them in the user's language and in plain words: no file names, function names or jargon.
 
 ## recent work

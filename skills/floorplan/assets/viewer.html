@@ -223,6 +223,16 @@ svg.dim .node:not(.hl) .card > * { opacity: .28; transition: opacity .3s var(--e
 .cols text { fill: var(--text-3); font: 500 13px Inter, system-ui, sans-serif; letter-spacing: -.005em; dominant-baseline: central; text-anchor: middle; }
 @keyframes fadeIn { from { opacity: 0; } }
 .edge { color: var(--k-import); }
+:root { --k-how: var(--text-3); }
+.how-grp { fill: rgba(var(--ink), .025); stroke: var(--hair-2); stroke-width: 1; }
+.how-head { padding: 16px 24px 0; }
+.how-head .ht { font-size: 16px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.how-head .hn { flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; background: rgba(var(--ink), .07); font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.how-head .hd { font-size: 12.5px; color: var(--text-3); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.how-ah { fill: var(--k-how); }
+.how-lb { font-size: 11.5px; line-height: 20px; color: var(--text-2); background: var(--bg); border: 1px solid var(--hair); border-radius: 999px; padding: 0 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.card .ico.emo { font-size: 17px; line-height: 1; }
+.card.step .foot .meta { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .edge .trace { fill: none; stroke: currentColor; stroke-opacity: .5; stroke-linecap: round; stroke-linejoin: round; transition: stroke-opacity .25s var(--ease), stroke-width .25s var(--ease); }
 .edge .flow { fill: none; stroke: currentColor; stroke-width: 2; stroke-dasharray: 2 10; stroke-linecap: round; opacity: 0; transition: opacity .25s var(--ease); }
 .edge .hit { fill: none; stroke: transparent; stroke-width: 16; cursor: pointer; }
@@ -654,6 +664,7 @@ function el(tag, attrs = {}, parent) {
 
 // ---------- icons ----------
 const P = {
+  processes: '<rect x="3" y="4" width="6" height="5" rx="1.5"/><rect x="15" y="4" width="6" height="5" rx="1.5"/><rect x="9" y="15" width="6" height="5" rx="1.5"/><path d="M9 6.5h6M18 9v2.5a1.5 1.5 0 0 1-1.5 1.5H12v2"/>',
   ui: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
   service: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
   worker: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
@@ -760,6 +771,8 @@ function humanize(s) { s = s.replace(/[_\-.]+/g, ' ').replace(/([a-z])([A-Z])/g,
 
 function info(item) {
   if (item === 'root') return { type: 'root', name: G.project.name, desc: G.project.summary || '', kind: 'root' };
+  if (item === 'q:how') return { type: 'how', name: 'How it works', desc: `${(HOW.length === 1 ? '1 process' : HOW.length + ' processes')}, in plain words`, kind: 'how' };
+  if (item.startsWith('p:')) { const { p, s } = howStep(item); const ref = s.ref && Q.exists(s.ref) ? s.ref : null; return { type: 'step', name: s.label, desc: s.note || '', kind: 'step', p, s, ref, path: p.title }; }
   if (item === 'q:answer') return { type: 'answer', name: state.answer?.title || 'Answer', desc: state.answer?.question || '', kind: 'answer' };
   const t = item.slice(0, 2);
   if (t === 'n:') { const n = nodes.get(item.slice(2)); return { type: 'node', name: n.label, desc: n.summary, kind: n.kind, n }; }
@@ -776,8 +789,8 @@ const nameOf = (item) => info(item.startsWith('x:') ? connEntity(item) : item).n
 const visibleKids = (item) => (kids.get(item) || []).filter((k) => technical() || !k.startsWith('s:'));
 const drillable = (item) => /^(n:|d:|f:)/.test(item) && visibleKids(item).length > 0;
 const methodVar = (m) => `var(--m-${m in METHODS ? m : 'ANY'})`;
-const colorOf = (i) => i.type === 'route' ? methodVar(i.r.m) : `var(--n-${i.type === 'node' ? i.kind : i.type === 'symbol' ? 'symbol' : i.type})`;
-const iconKey = (i) => i.type === 'node' ? i.kind : i.type === 'symbol' ? i.kind : i.type;
+const colorOf = (i) => i.type === 'step' ? (i.ref ? colorOf(info(i.ref)) : 'var(--accent)') : i.type === 'route' ? methodVar(i.r.m) : `var(--n-${i.type === 'node' ? i.kind : i.type === 'symbol' ? 'symbol' : i.type})`;
+const iconKey = (i) => i.type === 'step' ? 'processes' : i.type === 'node' ? i.kind : i.type === 'symbol' ? i.kind : i.type;
 
 function statsOf(item) {
   const i = info(item);
@@ -806,6 +819,79 @@ function enclosingSymbol(f, line) {
 }
 
 /** An answer's ad-hoc board: just the cards Claude picked, and every connection among them. */
+// How it works (G.processes): the app's main processes as boards of steps; step ids are p:<process>.<step>
+const HOW = G.processes || [];
+const howStep = (id) => { const [pi, si] = id.slice(2).split('.').map(Number); return { p: HOW[pi], s: HOW[pi].steps[si], pi, si }; };
+const isHowStep = (id) => /^p:\d+\.\d+$/.test(id) && !!HOW[+id.slice(2).split('.')[0]]?.steps[+id.split('.')[1]];
+function buildHowView() {
+  const visible = [], edges = [];
+  HOW.forEach((p, pi) => {
+    p.steps.forEach((s, si) => visible.push(`p:${pi}.${si}`));
+    const idx = new Map(p.steps.map((s, si) => [s.id, si]));
+    p.arrows.forEach((a, ai) => edges.push({ id: `h${pi}_${ai}`, a: `p:${pi}.${idx.get(a.a)}`, b: `p:${pi}.${idx.get(a.b)}`, k: 'how', w: 1, links: [], label: a.label || '', pi }));
+  });
+  return { container: 'q:how', visible, connectors: [], edges, hidden: 0 };
+}
+const HOW_HEAD = 70;
+/** Each process is laid out on its own, left to right, then they stack top to bottom in one frame each. */
+async function layoutHow(view) {
+  const parts = await Promise.all(HOW.map((p, pi) => elk.layout({
+    id: 'g' + pi,
+    children: view.visible.filter((v) => v.startsWith(`p:${pi}.`)).map((id) => ({ id, width: SIZES.step[0], height: SIZES.step[1] + cardExtraH(id) })),
+    edges: view.edges.filter((e) => e.pi === pi).map((e) => ({ id: e.id, sources: [e.a], targets: [e.b], labels: e.label ? [{ id: e.id + 'l', text: e.label, width: Math.min(textW(e.label, 11.5, 500), 180) + 16, height: 22 }] : [] })),
+    layoutOptions: {
+      'elk.algorithm': 'layered', 'elk.direction': 'RIGHT', 'elk.edgeRouting': 'ORTHOGONAL',
+      'elk.layered.spacing.nodeNodeBetweenLayers': '84', 'elk.spacing.nodeNode': '30', 'elk.spacing.edgeLabel': '4', 'elk.spacing.edgeEdge': '10',
+      'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES', 'elk.layered.cycleBreaking.strategy': 'MODEL_ORDER', 'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+      'elk.padding': `[top=${HOW_HEAD + 8},left=28,bottom=28,right=28]`,
+    },
+  })));
+  const children = [], edges = [], groups = [];
+  let y = 40;
+  const mv = (o, ox, oy) => ({ ...o, x: o.x + ox, y: o.y + oy });
+  parts.forEach((r, pi) => {
+    const ox = 40, oy = y, p = HOW[pi];
+    const w = Math.max(r.width, Math.min(textW(p.title, 16, 600), 700) + 64, 360);
+    groups.push({ pi, x: ox, y: oy, w, h: r.height });
+    for (const c of r.children) children.push(mv(c, ox, oy));
+    for (const e of r.edges || []) edges.push({ ...e, sections: (e.sections || []).map((sc) => ({ ...sc, startPoint: mv(sc.startPoint, ox, oy), endPoint: mv(sc.endPoint, ox, oy), bendPoints: (sc.bendPoints || []).map((b) => mv(b, ox, oy)) })), labels: (e.labels || []).map((l) => mv(l, ox, oy)) });
+    y += r.height + 48;
+  });
+  return { width: Math.max(...groups.map((g) => g.w)) + 80, height: y - 48 + 40, children, edges, groups };
+}
+function drawHowGroups(g, res) {
+  for (const gr of res.groups) {
+    const p = HOW[gr.pi];
+    el('rect', { class: 'how-grp', x: gr.x, y: gr.y, width: gr.w, height: gr.h, rx: 24 }, g);
+    const fo = el('foreignObject', { x: gr.x, y: gr.y, width: gr.w, height: HOW_HEAD }, g);
+    fo.innerHTML = `<div class="how-head"><div class="ht"><span class="hn">${gr.pi + 1}</span>${h(p.title)}</div>${p.description ? `<div class="hd">${h(p.description)}</div>` : ''}</div>`;
+    fo.addEventListener('click', (ev) => { ev.stopPropagation(); select(`p:${gr.pi}.0`); });
+  }
+}
+function stepPanel(id) {
+  const i = info(id), { p, pi } = howStep(id);
+  const idx = new Map(p.steps.map((s, si) => [s.id, si]));
+  const row = (a, dir) => { const other = `p:${pi}.${idx.get(dir === 'out' ? a.b : a.a)}`; return `<a class="row" data-sel="${h(other)}"><span class="dot" style="background:var(--k-how)"></span><span class="rt"><div class="rn">${dir === 'out' ? '→' : '←'} ${h(info(other).name)}</div>${a.label ? `<div class="rd">${h(a.label)}</div>` : ''}</span></a>`; };
+  const outs = p.arrows.filter((a) => a.a === i.s.id), ins = p.arrows.filter((a) => a.b === i.s.id);
+  return `<div class="sec">${header(i).replace('<p class="pd empty">No description yet.</p>', '')}
+      ${i.ref ? `<p class="pd">On the map: <b>${h(info(i.ref).name)}</b></p>` : ''}
+      <div class="actions">${i.ref ? `<button class="btn soft" data-go="${h(i.ref)}">Show on the map</button>` : ''}<button class="btn soft" data-sel="${h(`p:${pi}.0`)}">Start of this process</button></div></div>
+    <div class="sec"><h3>Part of</h3><div class="list"><a class="row" data-sel="${h(`p:${pi}.0`)}"><span class="dot" style="background:var(--accent)"></span><span class="rt"><div class="rn">${h(p.title)}</div>${p.description ? `<div class="rd">${h(p.description)}</div>` : ''}</span></a></div></div>
+    ${listSec('Comes from', ins.map((a) => row(a, 'in')))}
+    ${listSec('Leads to', outs.map((a) => row(a, 'out')))}`;
+}
+function howPanel() {
+  return `<div class="sec"><div class="ph"><span class="ico" style="--c:var(--accent)">${icon('processes')}</span><span class="kindlabel">Processes</span></div><h2 class="pt">How it works</h2>
+      <p class="pd">The main things the app does, step by step, in plain words. Click a step for details; double-click one to see that part on the map.</p>
+      <div class="actions"><button class="btn soft" data-goroot>Back to map</button></div></div>
+    ${listSec('Processes', HOW.map((p, pi) => `<a class="row" data-sel="p:${pi}.0"><span class="anote" style="margin:0;padding:0;background:none;border:0"><b>${pi + 1}</b></span><span class="rt"><div class="rn">${h(p.title)}</div>${p.description ? `<div class="rd">${h(p.description)}</div>` : ''}<div class="rp">${plural(p.steps.length, 'step')}</div></span></a>`))}`;
+}
+function howEdgePanel(e) {
+  return `<div class="sec"><div class="ph"><span class="ico" style="--c:var(--k-how)">${icon('processes')}</span><span class="kindlabel">Step to step</span></div>
+      <h2 class="pt">${h(nameOf(e.a))} → ${h(nameOf(e.b))}</h2>${e.label ? `<p class="pd">${h(e.label)}</p>` : ''}
+      <div class="actions"><button class="btn soft" data-sel="${h(e.a)}">Go to the first</button><button class="btn soft" data-sel="${h(e.b)}">Go to the next</button></div></div>`;
+}
+
 function buildAnswerView() {
   const visible = state.answer.items.map((x) => x.id);
   const vis = new Set(visible);
@@ -857,6 +943,7 @@ const answerNote = (item) => {
 
 function buildView(container) {
   if (container === 'q:answer') return buildAnswerView();
+  if (container === 'q:how') return buildHowView();
   const isFile = container.startsWith('f:');
   const visible = visibleKids(container).slice();
   if (isFile) visible.unshift('m:' + container.slice(2));
@@ -911,7 +998,7 @@ function buildView(container) {
 // Cards carry only what you read at a glance: icon, name, description, one count. Paths, kinds and
 // sizes live in the hover tooltip and the details panel.
 // [width, min height]
-const SIZES = { node: [300, 128], dir: [272, 110], file: [284, 110], module: [284, 110], route: [300, 128], symbol: [260, 100] };
+const SIZES = { step: [256, 96], node: [300, 128], dir: [272, 110], file: [284, 110], module: [284, 110], route: [300, 128], symbol: [260, 100] };
 const NOTE_H = 64;
 const FOOT_H = 30;   // the footer row: size on the left, recent-work pill on the right
 const TITLE2_H = 10; // a title that wraps onto a second line
@@ -923,6 +1010,7 @@ function cardFoot(item) {
   if (i.type === 'node' && i.n.kind !== 'external') { const sub = (kids.get(item) || []).filter((k) => k.startsWith('n:')).length; size = sub ? plural(sub, 'module') : plural(statsOf(item).files, 'file'); }
   else if (i.type === 'dir') size = plural(statsOf(item).files, 'file');
   else if (i.type === 'module') size = 'this file';
+  else if (i.type === 'step') size = i.ref ? '↗ ' + info(i.ref).name : '';
   else if (i.type === 'file') { const nr = (routesByFile.get(i.f.p) || []).length; size = nr ? plural(nr, 'endpoint') : ''; }
   const rec = recentOf(item), inside = recentIn.get(item.startsWith('m:') ? 'f:' + item.slice(2) : item);
   const pill = rec ? `<span class="rw">${recentLabel(rec)}</span>` : inside ? `<span class="rw soft">${inside.length} changed</span>` : '';
@@ -958,6 +1046,9 @@ function cardHTML(item) {
     head = `<span class="method" style="--m:${methodVar(r.m)}">${h(r.m)}</span><span class="rpath">${h(r.p)}</span>`;
     title = `<div class="title">${h(r.name)}</div>`;
     desc = dsc(r.d, 2);
+  } else if (i.type === 'step') {
+    head = `<span class="ico${i.s.emoji ? ' emo' : ''}">${i.s.emoji ? h(i.s.emoji) : icon('processes')}</span><div class="title">${h(i.name)}</div>`;
+    desc = i.desc ? dsc(i.desc, 2) : '';
   } else if (i.type === 'symbol') {
     head = `<span class="ico">${icon(i.kind)}</span><div class="title mono">${h(i.s[0])}</div>`;
     desc = i.desc ? dsc(i.desc, 2) : '';
@@ -974,6 +1065,7 @@ function connectorHTML(c) {
 }
 /** Hover tooltip for a card: what it is, where it lives, and what you can do with it. */
 function cardTip(id) {
+  if (id.startsWith('p:')) { const i = info(id); return `<div class="tt">${h(i.name)}</div>${i.desc ? `<div class="td">${h(i.desc)}</div>` : ''}<div class="td">${h(i.p.title)}</div><div class="th">${i.ref ? '<span><span class="kbd">2×click</span> show on the map</span>' : ''}<span><span class="kbd">right-click</span> more</span></div>`; }
   if (id.startsWith('x:')) {
     const i = info(connEntity(id));
     return `<div class="tt">${id.startsWith('x:in') ? 'From' : 'To'} ${h(i.name)}</div>${i.desc ? `<div class="td">${h(i.desc)}</div>` : ''}<div class="th"><span><span class="kbd">2×click</span> go there</span><span><span class="kbd">right-click</span> more</span></div>`;
@@ -1005,6 +1097,7 @@ const measure = document.createElement('canvas').getContext('2d');
 const textW = (s, px = 12, w = 500) => { measure.font = `${w} ${px}px Inter, system-ui, sans-serif`; return measure.measureText(s).width; };
 
 async function layout(view) {
+  if (view.container === 'q:how') return layoutHow(view);
   const deg = new Map();
   const bump = (id) => deg.set(id, (deg.get(id) || 0) + 1);
   for (const e of view.edges) { bump(e.a); bump(e.b); }
@@ -1079,6 +1172,8 @@ function draw(view, res) {
   const gEdges = el('g', { class: 'edges' }, vp), gFx = el('g', {}, vp), gNodes = el('g', {}, vp), gPorts = el('g', { class: 'edges' }, vp);
   state.fxLayer = gFx;
   drawColumns(gCols, view, res);
+  if (res.groups) drawHowGroups(gCols, res);
+  if (res.groups) el('marker', { id: 'how-arrow', viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse', markerUnits: 'userSpaceOnUse' }, el('defs', {}, vp)).innerHTML = '<path d="M0,1 L9,5 L0,9" class="how-ah"/>';
   state.edgeEls = new Map(); state.chipEls = new Map();
   for (const re of res.edges || []) {
     const e = edgeById.get(re.id), s = re.sections?.[0];
@@ -1087,12 +1182,16 @@ function draw(view, res) {
     const d = roundedPath(pts, 14);
     const g = el('g', { class: `edge k-${e.k}`, style: `color:var(--k-${e.k})` }, gEdges);
     const width = 1.3 + Math.min(4, Math.log2(e.w + 1)) * 0.5;
-    el('path', { class: 'trace', d, 'stroke-width': width.toFixed(2) }, g);
+    el('path', { class: 'trace', d, 'stroke-width': width.toFixed(2), ...(e.k === 'how' ? { 'marker-end': 'url(#how-arrow)' } : {}) }, g);
     el('path', { class: 'flow', d }, g);
     el('path', { class: 'hit', d }, g);
     const pg = el('g', { class: `edge k-${e.k}`, style: `color:var(--k-${e.k})` }, gPorts);
     el('circle', { class: 'port', cx: s.startPoint.x, cy: s.startPoint.y, r: 3.4 }, pg);
-    el('circle', { class: 'port', cx: s.endPoint.x, cy: s.endPoint.y, r: 3.4 }, pg);
+    if (e.k !== 'how') el('circle', { class: 'port', cx: s.endPoint.x, cy: s.endPoint.y, r: 3.4 }, pg);
+    for (const lb of re.labels || []) {
+      const lfo = el('foreignObject', { x: lb.x, y: lb.y, width: lb.width, height: lb.height }, pg);
+      lfo.innerHTML = `<div class="how-lb" title="${h(e.label)}">${h(e.label)}</div>`;
+    }
     g.addEventListener('mouseenter', (ev) => showTip(ev, edgeTip(e)));
     g.addEventListener('mousemove', moveTip);
     g.addEventListener('mouseleave', hideTip);
@@ -1121,7 +1220,7 @@ function draw(view, res) {
 /** Brackets over the three columns of a view that has outside connections: what uses this part (left),
  *  what's inside it (middle), and what it uses (right). Drawn in map space so they pan and zoom with it. */
 function drawColumns(g, view, res) {
-  if (!view.connectors?.length || state.container === 'root' || state.container === 'q:answer') return;
+  if (!view.connectors?.length || state.container === 'root' || state.container.startsWith('q:')) return;
   const span = (cs) => cs.length ? [Math.min(...cs.map((c) => c.x)), Math.max(...cs.map((c) => c.x + c.width))] : null;
   const ins = res.children.filter((c) => c.id.startsWith('x:in:'));
   const outs = res.children.filter((c) => c.id.startsWith('x:out:'));
@@ -1163,6 +1262,7 @@ function endpointsOf(e) {
   return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([ri, n]) => ({ r: routes[ri], i: ri, n }));
 }
 function edgeTip(e) {
+  if (e.k === 'how') return `<div class="tt">${h(nameOf(e.a))} → ${h(nameOf(e.b))}</div>${e.label ? `<div class="td">${h(e.label)}</div>` : ''}`;
   if (e.k === 'contains') return `<div class="tt">${h(nameOf(e.a))} contains ${h(nameOf(e.b))}</div>`;
   const eps = endpointsOf(e);
   const names = [...new Set(e.links.flatMap((l) => l.names || []))];
@@ -1193,6 +1293,11 @@ function openMenu(ev, items) {
 function closeMenu() { ctxEl.hidden = true; }
 const copy = (text) => navigator.clipboard?.writeText(text).catch(() => {});
 function itemMenu(id) {
+  if (id.startsWith('p:')) {
+    const i = info(id);
+    return [{ title: i.name }, i.ref ? { label: 'Show on the map', icon: 'external', hint: '2×click', run: () => reveal(i.ref) } : null,
+      { label: 'Show details', icon: 'panel', run: () => { setPanel(true); select(id); } }, '-', { label: 'Copy name', icon: 'copy', run: () => copy(i.name) }];
+  }
   const real = id.startsWith('x:') ? connEntity(id) : id.startsWith('m:') ? 'f:' + id.slice(2) : id;
   const i = info(real);
   const path = i.type === 'route' ? `${i.r.m} ${i.r.p}` : i.type === 'node' ? (i.n.paths || []).join(' ') : i.path;
@@ -1229,7 +1334,7 @@ function canvasMenu() {
     state.container !== 'root' ? { label: 'Back to overview', icon: 'home', run: () => go('root') } : null,
     '-',
     { label: 'Search', icon: 'search', hint: '/', run: openPalette },
-    EXPORTED ? null : { label: 'Ask about this view', icon: 'spark', run: () => { if (state.container !== 'root' && state.container !== 'q:answer') addAskContext(state.container); askInput.focus(); } },
+    EXPORTED ? null : { label: 'Ask about this view', icon: 'spark', run: () => { if (!state.container.startsWith('q:') && state.container !== 'root') addAskContext(state.container); askInput.focus(); } },
   ];
 }
 svg.addEventListener('contextmenu', (ev) => { ev.preventDefault(); hideTip(); openMenu(ev, canvasMenu()); });
@@ -1337,7 +1442,7 @@ $('#z-fit').onclick = () => fit(true);
 
 // ======================= navigation =======================
 function setHash(container, sel) {
-  if (container.startsWith('q:')) return; // answer views are transient
+  if (container.startsWith('q:') && container !== 'q:how') return; // answer views are transient
   const p = new URLSearchParams();
   if (container !== 'root') p.set('v', container);
   if (sel && typeof sel === 'string') p.set('s', sel);
@@ -1347,8 +1452,8 @@ function setHash(container, sel) {
 function readHash() {
   const p = new URLSearchParams(location.hash.slice(1));
   let v = p.get('v') || 'root', s = p.get('s');
-  if (v !== 'root' && !parentOf.has(v)) v = 'root';
-  if (s && !parentOf.has(s) && !s.startsWith('x:') && !s.startsWith('m:')) s = null;
+  if (v !== 'root' && !parentOf.has(v) && !(v === 'q:how' && HOW.length)) v = 'root';
+  if (s && !parentOf.has(s) && !s.startsWith('x:') && !s.startsWith('m:') && !(v === 'q:how' && isHowStep(s))) s = null;
   return { v, s };
 }
 window.addEventListener('popstate', () => { const { v, s } = readHash(); go(v, { select: s, push: false }); });
@@ -1374,6 +1479,7 @@ async function go(container, { select: sel = null, push = true, zoomFrom = null,
 function open(item) {
   if (item.startsWith('x:')) { reveal(connEntity(item)); return; }
   if (item.startsWith('m:')) return;
+  if (item.startsWith('p:')) { const r = info(item).ref; if (r) reveal(r); else select(item); return; }
   if (state.container === 'q:answer' && !drillable(item)) { reveal(item); return; }
   if (!drillable(item)) { select(item); return; }
   closeSheet();
@@ -1382,7 +1488,7 @@ function open(item) {
 function up() { if (state.container === 'root') return; closeSheet(); const from = state.container; go(parentOf.get(from) || 'root', { select: from }); }
 function reveal(item) {
   if (item === 'root') return go('root');
-  const container = parentOf.get(item) || 'root';
+  const container = item.startsWith('p:') ? 'q:how' : parentOf.get(item) || 'root';
   go(container, { select: item, after: () => { const g = state.chipEls.get(item); if (g) { g.classList.remove('flash'); void g.getBBox(); g.classList.add('flash'); centerOn(item); } } });
 }
 /** Moves the map just far enough that a box isn't hidden behind the top bar or the sheet; the zoom and everything else stay as they are. */
@@ -1430,6 +1536,10 @@ function applySelection() {
 
 // ======================= chrome: context, crumbs, legend =======================
 function renderContext() {
+  if (state.container === 'q:how') {
+    $('#context').innerHTML = `<div class="k"><span class="ico" style="--c:var(--on)">${icon('processes')}</span>How it works · ${(HOW.length === 1 ? '1 process' : HOW.length + ' processes')}</div><h1>How it works</h1><p>The main things the app does, step by step. Double-click a step to see it on the map.</p>`;
+    return;
+  }
   if (state.container === 'q:answer') {
     $('#context').innerHTML = `<div class="k"><span class="ico" style="--c:var(--on)">${icon(state.answer.icon || 'spark')}</span>${h(state.answer.kind || 'Answer')} · ${plural(state.answer.items.length, 'card')}</div><h1>${h(state.answer.title)}</h1><p>${h(state.answer.question)}</p>`;
     return;
@@ -1456,11 +1566,11 @@ function foldContext() {
 }
 function renderCrumbs() {
   const c = $('#crumbs'); c.innerHTML = '';
-  const path = chain(state.container).slice().reverse();
+  const path = state.container === 'q:how' ? ['root', 'q:how'] : chain(state.container).slice().reverse();
   path.forEach((item, idx) => {
     if (idx) { const s = document.createElement('span'); s.className = 'sep'; s.textContent = '/'; c.appendChild(s); }
     const b = document.createElement('button');
-    b.textContent = item === 'root' ? 'Overview' : item === 'q:answer' ? `${state.answer.kind || 'Answer'}: ${state.answer.title}` : info(item).name;
+    b.textContent = item === 'root' ? 'Overview' : item === 'q:answer' ? `${state.answer.kind || 'Answer'}: ${state.answer.title}` : item === 'q:how' ? 'How it works' : info(item).name;
     if (item === state.container) b.className = 'cur';
     b.onclick = () => go(item, { select: path[idx + 1] || null });
     c.appendChild(b);
@@ -1519,10 +1629,11 @@ function renderPanel() {
   if (sel && typeof sel === 'object' && sel.edge) html = edgePanel(state.edgeEls.get(sel.edge)?.e);
   else if (sel && sel.startsWith('x:')) html = itemPanel(connEntity(sel), true);
   else if (sel && sel.startsWith('m:')) html = itemPanel('f:' + sel.slice(2));
+  else if (sel && sel.startsWith('p:')) html = stepPanel(sel);
   else if (sel) html = itemPanel(sel);
-  else html = state.container === 'root' ? overviewPanel() : state.container === 'q:answer' ? answerPanel() : itemPanel(state.container);
+  else html = state.container === 'root' ? overviewPanel() : state.container === 'q:answer' ? answerPanel() : state.container === 'q:how' ? howPanel() : itemPanel(state.container);
   // extensions add sections: 'overview' on the codebase panel, 'item' on a selected/opened item
-  const where = sel && typeof sel === 'object' ? null : sel ? 'item' : state.container === 'root' ? 'overview' : state.container === 'q:answer' ? null : 'item';
+  const where = sel && typeof sel === 'object' ? null : sel ? 'item' : state.container === 'root' ? 'overview' : state.container.startsWith('q:') ? null : 'item';
   const target = sel && typeof sel === 'string' ? (sel.startsWith('x:') ? connEntity(sel) : sel.startsWith('m:') ? 'f:' + sel.slice(2) : sel) : state.container;
   const extOut = [];
   if (custom.panel) { html = custom.panel.html; extOut.push(...(custom.panel.bind ? [{ bind: custom.panel.bind, whole: true }] : [])); }
@@ -1677,6 +1788,7 @@ function itemPanel(item, viaConnector) {
 
 function edgePanel(e) {
   if (!e) return '';
+  if (e.k === 'how') return howEdgePanel(e);
   const eps = endpointsOf(e);
   const names = [...new Set(e.links.flatMap((l) => l.names || []))];
   const desc = e.links.map((l) => l.desc).filter(Boolean);
@@ -1697,6 +1809,7 @@ const index = [
   ...G.nodes.map((n) => ({ id: 'n:' + n.id, name: n.label, desc: n.summary || '', path: n.id, kind: n.kind, w: 4 })),
   ...G.files.map((f) => ({ id: 'f:' + f.p, name: f.name, desc: f.d || '', path: f.p, kind: 'file', w: 3 })),
   ...routes.map((r, i) => ({ id: 'r:' + i, name: r.name, desc: r.d || '', path: `${r.m} ${r.p}`, kind: 'route', w: 3 })),
+  ...HOW.flatMap((p, pi) => p.steps.map((s, si) => ({ id: `p:${pi}.${si}`, name: s.label, desc: s.note || p.title, path: `How it works · ${p.title}`, kind: 'processes', w: 2 }))),
   ...G.files.flatMap((f) => (f.s || []).map((s, i) => ({ id: `s:${f.p}#${i}`, name: s[0], desc: s[4] || '', path: f.p, kind: symIcon(s[1]), w: 1 }))).filter((x) => parentOf.has(x.id)),
 ];
 const pal = $('#palette'), sInput = $('#search'), sRes = $('#results');
@@ -2338,7 +2451,7 @@ window.Floorplan = Object.freeze({
   h, icon, iconI, fmt, plural, md,
   // navigation
   go, reveal, select, open, up, fit, render: (o) => render({ keepTransform: true, ...o }), refreshPanel: () => renderPanel(),
-  showBoard, playFlow, startFlow, stopFlow: () => { if (state.flow) stopFlow(); },
+  showBoard, showHow: () => { if (HOW.length) go('q:how'); }, playFlow, startFlow, stopFlow: () => { if (state.flow) stopFlow(); },
   freeArea: () => freeArea(),
   closeMenus: () => { closeMenu(); fm.classList.remove('open'); legendEl.classList.remove('open'); },
   // asking
@@ -2376,6 +2489,7 @@ window.Floorplan = Object.freeze({
 technicalFlag = !!store.get('technical', false);
 
 const init = readHash();
+if (EXPORTED?.howOnly && init.v === 'root' && HOW.length) init.v = 'q:how';
 state.container = init.v; state.selected = init.s;
 if (init.s && isPhone()) { document.body.classList.remove('no-panel'); $('#btn-panel').setAttribute('aria-expanded', 'true'); } // a shared link to a box opens its details
 const fontsReady = document.fonts?.ready ? Promise.race([document.fonts.ready, new Promise((ok) => setTimeout(ok, 1500))]) : Promise.resolve();

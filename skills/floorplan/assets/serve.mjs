@@ -48,10 +48,11 @@ const cleanDismissal = (d) => ({
 // ---------- export: a copy of the map to share ----------
 // The same self-contained page, marked as exported: no Ask bar, no requests for Claude or Codex, no links into
 // this computer, and only the extras asked for. Used by the map's Export button and by --export.
-const EXPORT_PARTS = ['flows', 'notes', 'recent', 'health'];
-const EXPORT_DEFAULT = ['flows', 'notes'];
+const EXPORT_PARTS = ['processes', 'flows', 'notes', 'recent', 'health'];
+const EXPORT_DEFAULT = ['processes', 'flows', 'notes'];
 const DATA_START = '<script>window.FLOORPLAN = ';
-function exportMap(include, extraFlows = []) {
+/** howOnly: just How it works, plus the top-level parts its steps point at (no files, endpoints or links). */
+function exportMap(include, extraFlows = [], { howOnly = false } = {}) {
   const html = fs.readFileSync(path.join(here, 'index.html'), 'utf8');
   const a = html.indexOf(DATA_START), b = html.indexOf(';</script>', a);
   if (a < 0 || b < 0) throw Object.assign(new Error('This map is too old to export. Ask Claude or Codex to update the floorplan first.'), { plain: true });
@@ -65,13 +66,20 @@ function exportMap(include, extraFlows = []) {
     tour: on.includes('flows') ? g.tour : [],
     files: on.includes('notes') ? g.files : g.files.map(({ note, ...f }) => f),
   };
+  if (!on.includes('processes')) delete out.processes;
+  if (howOnly) {
+    if (!g.processes?.length) throw Object.assign(new Error('This map has no How it works yet. Ask Claude or Codex to update the floorplan first.'), { plain: true });
+    Object.assign(out, { processes: g.processes.map((p) => ({ ...p, steps: p.steps.map(({ ref, ...st }) => (ref && ref.startsWith('n:') ? { ...st, ref } : st)) })), files: [], routes: [], links: [], flows: [], tour: [] });
+    delete out.recent; delete out.health;
+    out.meta.exported = { ...out.meta.exported, include: ['processes'], howOnly: true };
+  }
   if (!on.includes('recent')) delete out.recent;
   if (!on.includes('health')) delete out.health;
   // dismissals made since the last build travel with the copy (the page applies them; no reasons, which are notes to self)
   else if (out.health) { const list = readDismissed().map(({ reason, ...d }) => d); if (list.length) out.health = { ...out.health, dismissed: list }; else delete out.health.dismissed; }
   const json = JSON.stringify(out).replace(/<\/(script)/gi, '<\\/$1').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
   const slug = String(g.project?.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'floorplan';
-  return { html: html.slice(0, a + DATA_START.length) + json + html.slice(b), name: `${slug}-map.html`, include: on, plan: !!g.meta?.blueprint };
+  return { html: html.slice(0, a + DATA_START.length) + json + html.slice(b), name: howOnly ? `${slug}-how-it-works.html` : `${slug}-map.html`, include: howOnly ? ['processes'] : on, plan: !!g.meta?.blueprint };
 }
 /** Flows requested from the map since it was last built, as the page sends them: checked and trimmed. */
 const cleanFlows = (list) => (Array.isArray(list) ? list : []).slice(0, 50)
@@ -81,6 +89,17 @@ const cleanFlows = (list) => (Array.isArray(list) ? list : []).slice(0, 50)
     steps: f.steps.slice(0, 60).filter((s) => s && typeof s.ref === 'string').map((s) => ({ ref: s.ref.slice(0, 300), note: String(s.note || '').slice(0, 2000) })),
   }))
   .filter((f) => f.steps.length >= 2);
+if (has('export-how')) {
+  const dest = opt('export-how');
+  try {
+    const x = exportMap(['processes'], [], { howOnly: true });
+    const file = path.resolve(dest && !dest.startsWith('--') ? dest : path.join(here, x.name));
+    fs.writeFileSync(file, x.html);
+    console.log(`Exported How it works to ${file}`);
+    console.log('Just the processes, with the main parts of the app they point at. One file that opens in any browser.');
+    process.exit(0);
+  } catch (e) { console.error(`✗ Couldn't export How it works: ${e.message}`); process.exit(1); }
+}
 if (has('export')) {
   const dest = opt('export');
   const include = String(opt('include', EXPORT_DEFAULT.join(','))).split(',').map((s) => s.trim().toLowerCase());
@@ -89,7 +108,7 @@ if (has('export')) {
     const file = path.resolve(dest && !dest.startsWith('--') ? dest : path.join(here, x.name));
     fs.writeFileSync(file, x.html);
     console.log(`Exported the map to ${file}`);
-    const label = { flows: 'flows and the tour', notes: 'notes', recent: 'recent work', health: x.plan ? 'the design review' : 'the health check' };
+    const label = { processes: 'How it works', flows: 'flows and the tour', notes: 'notes', recent: 'recent work', health: x.plan ? 'the design review' : 'the health check' };
     console.log(`Includes: the map${x.include.map((p) => ', ' + label[p]).join('')}. One file that opens in any browser, with no Ask bar.`);
     if (x.include.includes('health') && !x.plan) console.log('It includes the health check: which endpoints are open and where secrets sit in the code (never their values). Share it only with people you trust.');
     process.exit(0);
@@ -604,7 +623,7 @@ const server = http.createServer((req, res) => {
       req.on('end', () => {
         let body = {}; try { body = JSON.parse(raw); } catch {}
         try {
-          const x = exportMap(Array.isArray(body.include) ? body.include.map(String) : EXPORT_DEFAULT, cleanFlows(body.flows));
+          const x = exportMap(Array.isArray(body.include) ? body.include.map(String) : EXPORT_DEFAULT, cleanFlows(body.flows), { howOnly: body.howOnly === true });
           res.writeHead(200, { 'Content-Type': TYPES['.html'], 'Content-Disposition': `attachment; filename="${x.name}"`, 'Cache-Control': 'no-store' });
           res.end(x.html);
         } catch (e) {

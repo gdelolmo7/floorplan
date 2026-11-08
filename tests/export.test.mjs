@@ -65,7 +65,7 @@ test('by default the export keeps flows and notes, and leaves out health, recent
   assert.equal(path.dirname(file), path.join(fs.realpathSync(root), 'floorplan'));
   const g = dataOf(html);
   assert.match(g.meta.exported.at, /^\d{4}-\d\d-\d\dT/);
-  assert.deepEqual(g.meta.exported.include, ['flows', 'notes']);
+  assert.deepEqual(g.meta.exported.include, ['processes', 'flows', 'notes']);
   assert.equal(g.health, undefined);
   assert.equal(g.recent, undefined);
   assert.equal(g.flows.length, 1);

@@ -29,6 +29,7 @@
 
   // only what this map has; the extras that say how the app could be attacked are off unless ticked
   const PARTS = [
+    { id: 'processes', label: 'How it works', hint: 'The main processes, step by step.', on: true, has: (G.processes || []).length > 0 },
     { id: 'flows', label: 'Flows and the tour', hint: 'The guided walkthroughs, including ones you requested.', on: true, has: G.flows.length > 0 || (G.tour || []).length > 0 },
     { id: 'notes', label: 'Notes pinned to files', hint: 'The notes shown on file cards.', on: true, has: G.files.some((f) => f.note) },
     { id: 'recent', label: 'Recent work', hint: 'What was just changed, and why.', on: false, has: !!G.recent?.items?.length },
@@ -37,13 +38,13 @@
       : { id: 'health', label: 'Health check', hint: 'Lists the endpoints anyone can use and where secrets sit in the code (never their values). Only include it for people you trust.', on: false, warn: true, has: !!G.health?.issues?.length },
   ].filter((p) => p.has);
 
-  async function download(el, close) {
+  async function download(el, close, howOnly = false) {
     const err = el.querySelector('.xp-err');
     const include = [...el.querySelectorAll('[data-xp]')].filter((c) => c.checked).map((c) => c.dataset.xp);
     // flows requested since the map was last built live only on this page so far
     const flows = G.flows.filter((f) => f.custom).map((f) => ({ id: f.id, title: f.title, description: f.description, steps: f.steps }));
     try {
-      const r = await fetch('/api/export', { method: 'POST', headers: { 'content-type': 'application/json', 'x-floorplan-token': S.token }, body: JSON.stringify({ include, flows }) });
+      const r = await fetch('/api/export', { method: 'POST', headers: { 'content-type': 'application/json', 'x-floorplan-token': S.token }, body: JSON.stringify({ include, flows, howOnly }) });
       if (r.status === 403) throw new Error('The map’s server has restarted since this page opened. Reload the page and try again.');
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'The map’s server couldn’t export it.');
       const name = /filename="([^"]+)"/.exec(r.headers.get('content-disposition') || '')?.[1] || 'floorplan-map.html';
@@ -75,7 +76,10 @@
         ${PARTS.length ? `<div class="xp-opts">${PARTS.map((p) => `<label class="xp-opt${p.warn ? ' warn' : ''}"><input type="checkbox" data-xp="${p.id}"${p.on ? ' checked' : ''}><div><b>${h(p.label)}</b><span>${h(p.hint)}</span></div></label>`).join('')}</div>` : ''}
         <p class="xp-note">It shows how ${h(G.project.name)} is put together: every part, file and endpoint, and the names of the functions inside, but not the code itself.</p>
         <div class="xp-err" hidden></div>`,
-      actions: [{ label: 'Download', primary: true, icon: 'export', keepOpen: true, onClick: (close) => { download(m.el, close); } }],
+      actions: [
+        ...((G.processes || []).length ? [{ label: 'Only How it works', icon: 'export', keepOpen: true, onClick: (close) => { download(m.el, close, true); } }] : []),
+        { label: 'Download', primary: true, icon: 'export', keepOpen: true, onClick: (close) => { download(m.el, close); } },
+      ],
     });
   }
 

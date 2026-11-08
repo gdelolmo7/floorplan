@@ -53,3 +53,20 @@ test('no processes, no view', () => {
   withProcesses(undefined);
   assert.equal(readGraph(root).processes, undefined);
 });
+
+test('the map export carries How it works, and --export-how saves it on its own', async () => {
+  const { execFileSync } = await import('node:child_process');
+  withProcesses([{ id: 'buy', title: 'Buying', steps: [{ label: 'Pick', node: 'web' }, { label: 'Pay', node: 'shop-api/routes/orders.js' }] }]);
+  const serve = path.join(root, 'floorplan', 'serve.mjs');
+  const data = (file) => { const h = fs.readFileSync(file, 'utf8'); const a = h.indexOf('window.FLOORPLAN = ') + 19; return JSON.parse(h.slice(a, h.indexOf(';</script>', a))); };
+  const full = path.join(root, 'full.html'), how = path.join(root, 'how.html');
+  execFileSync('node', [serve, '--export', full], { encoding: 'utf8' });
+  assert.equal(data(full).processes.length, 1);
+  execFileSync('node', [serve, '--export', full, '--include', 'flows'], { encoding: 'utf8' });
+  assert.equal(data(full).processes, undefined);
+  execFileSync('node', [serve, '--export-how', how], { encoding: 'utf8' });
+  const g = data(how);
+  assert.equal(g.meta.exported.howOnly, true);
+  assert.deepEqual([g.files.length, g.links.length], [0, 0]);
+  assert.deepEqual(g.processes[0].steps.map((s) => s.ref || null), ['n:web', null]); // file links dropped with the files
+});

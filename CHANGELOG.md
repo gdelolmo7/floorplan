@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **How it works:** a new header view draws the app's main processes as a plain-words picture, like a whiteboard drawing: stacked rows of emoji steps joined by labelled arrows. Claude writes them as `processes` in `architecture.json` on every make and update, in the user's language, and each step can open the part of the map that does it.
+- **How it works:** a board of the app's main processes, told as plain-words stories: one frame per process, its steps as cards joined by labelled arrows, drawn on the map's own canvas with the same pan, zoom, search, details panel and right-click menu. Double-click a step, or **Show on the map**, to jump to the part that does it. Claude writes them as `processes` in `architecture.json` on every make and update, from the app itself and in the user's language. It's in the map's export (ticked by default), and **Only How it works** or `serve.mjs --export-how` saves it as a file of its own with just the top-level parts it points at.
 
 ## 0.6.3 (2026-11-02)
 
